@@ -105,6 +105,26 @@ async def get_company_details(company_name: str) -> str:
         return f"Error fetching details for {company_name}: {data['error']}"
     return f"Company: {data['name']}\nSector: {data['sector']}\nMarket Cap: {data['market_cap']}"
 
+
+# Resource: Fetch Explore page
+@mcp.resource("company://{company_name}")
+async def get_company_details(company_name: str) -> str:
+    """Fetch company details from Screener.in."""
+    data = await make_screener_request(f"companies/{company_name}/")
+    if "error" in data:
+        return f"Error fetching details for {company_name}: {data['error']}"
+    return f"Company: {data['name']}\nSector: {data['sector']}\nMarket Cap: {data['market_cap']}"
+
+
+# Resource: Fetch screens page
+@mcp.resource("company://{company_name}")
+async def get_company_details(company_name: str) -> str:
+    """Fetch company details from Screener.in."""
+    data = await make_screener_request(f"companies/{company_name}/")
+    if "error" in data:
+        return f"Error fetching details for {company_name}: {data['error']}"
+    return f"Company: {data['name']}\nSector: {data['sector']}\nMarket Cap: {data['market_cap']}"
+
 # Tool: Fetch financial ratios
 @mcp.tool()
 async def fetch_ratios(company_name: str) -> dict:
