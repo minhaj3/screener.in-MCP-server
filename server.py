@@ -3,7 +3,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 # Initialize the MCP server
-mcp = FastMCP("Screener Server")
+mcp = FastMCP("Screener.in Server")
 
 # Define Screener.in API base URL and headers
 SCREENER_API_BASE = "https://www.screener.in/"
@@ -43,44 +43,46 @@ data = {
 
 
 # Helper function to make API requests
-async def make_screener_request(endpoint: str, params: dict = None) -> dict[str, Any] | None:
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(f"{SCREENER_API_BASE}/{endpoint}", cookies=cookies, headers=headers, data=data)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
+# async def make_screener_request(endpoint: str, params: dict = None) -> dict[str, Any] | None:
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             response = await client.post(f"{SCREENER_API_BASE}/{endpoint}", cookies=cookies, headers=headers, data=data)
+#             response.raise_for_status()
+#             return response.json()
+#         except Exception as e:
+#             return {"error": str(e)}
 
 # Scraping and downloading reports
-async def getReport(warehouseid, symbol, PATH):
-    url = f'https://www.screener.in/user/company/export/{warehouseid}/'
+async def download_report(symbol, PATH):
+    warehouseid = await get_warehouse_id(symbol)
+    url = f'{SCREENER_API_BASE}/user/company/export/{warehouseid}/'
     async with httpx.AsyncClient() as client:
-        r = await client.post(url, headers=HEADERS)
-        path = f'{PATH}/{symbol.strip()}.xlsx'
+        r = await client.post(url, cookies=cookies, headers=headers, data=data)
         logging.info(f"r.status_code: {r.status_code}")
+        r.raise_for_status()
+        path = f'{PATH}/{symbol.strip()}.xlsx'
 
         if r.status_code == 200:
             with open(path, 'wb') as f:
                 f.write(r.content)
             logging.info(f"Excel file created for: {symbol}")
 
+async def get_warehouse_id(symbol):
+    logging.info("Getting warehouse id: " + symbol)
+    api = f"{SCREENER_API_BASE}/api/company/search/?q={symbol}"
+    async with httpx.AsyncClient() as client:
+        d = await client.get(api)
+        j = json.loads(d.content)[0]
+        html = await client.get('https://www.screener.in' + j['url'])
+        results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
+        return results[0]
 
-async def scrape_and_download(symbols, PATH, delay):
+
+async def download_multiple_reports(symbols, PATH, delay):
     for symbol in symbols:
-        api = f"https://www.screener.in/api/company/search/?q={symbol}"
-        logging.info("Getting: " + api)
-        try:
-            async with httpx.AsyncClient() as client:
-                d = await client.get(api)
-                j = json.loads(d.content)[0]
-                html = await client.get('https://www.screener.in' + j['url'])
-                results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
-                logging.info("Downloading: " + symbol)
-                await getReport(results[0], symbol, PATH)
-                await asyncio.sleep(delay)
-        except Exception as e:
-            logging.error(f"Error: {api} {str(e)}")
+        download_report(symbol)
+        await asyncio.sleep(delay)
+
 
 # Resource: Fetch company details and download report
 @mcp.resource("company://{company_name}")
