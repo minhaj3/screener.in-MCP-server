@@ -131,61 +131,63 @@ async def get_screens_page(page: str = None) -> str:
     # extract relevent infor from screens page in some way like using beautiful soap etc
     return "True"
 
+import pandas as pd
+
+def read_excel_sheets(file_path: str) -> dict[str, pd.DataFrame]:
+    """Read all sheets from an Excel file and return a dictionary of DataFrames."""
+    xls = pd.ExcelFile(file_path)
+    sheets = {sheet_name: xls.parse(sheet_name) for sheet_name in xls.sheet_names}
+    return sheets
 
 @mcp.tool()
-async def analyze_profit_and_loss(file_path: str) -> str:
-    """Analyze the Profit and Loss tab of the Excel file."""
-    import pandas as pd
-    df = pd.read_excel(file_path, sheet_name='Profit and Loss')
+async def analyze_profit_and_loss(df: pd.DataFrame) -> str:
+    """Analyze the Profit and Loss DataFrame."""
     # Perform analysis on the Profit and Loss data
-    # Example: Calculate net profit margin
     net_profit_margin = df['Net Profit'] / df['Revenue'] * 100
     suggestions = f"Net Profit Margin: {net_profit_margin.mean():.2f}%"
     return suggestions
 
 @mcp.tool()
-async def analyze_quarters(file_path: str) -> str:
-    """Analyze the Quarters tab of the Excel file."""
-    import pandas as pd
-    df = pd.read_excel(file_path, sheet_name='Quarters')
+async def analyze_quarters(df: pd.DataFrame) -> str:
+    """Analyze the Quarters DataFrame."""
     # Perform analysis on the Quarters data
-    # Example: Calculate average quarterly growth
     quarterly_growth = df['Revenue'].pct_change().mean() * 100
     suggestions = f"Average Quarterly Growth: {quarterly_growth:.2f}%"
     return suggestions
 
 @mcp.tool()
-async def analyze_balance_sheet(file_path: str) -> str:
-    """Analyze the Balance Sheet tab of the Excel file."""
-    import pandas as pd
-    df = pd.read_excel(file_path, sheet_name='Balance Sheet')
+async def analyze_balance_sheet(df: pd.DataFrame) -> str:
+    """Analyze the Balance Sheet DataFrame."""
     # Perform analysis on the Balance Sheet data
-    # Example: Calculate debt to equity ratio
     debt_to_equity_ratio = df['Total Liabilities'] / df['Total Equity']
     suggestions = f"Debt to Equity Ratio: {debt_to_equity_ratio.mean():.2f}"
     return suggestions
 
 @mcp.tool()
-async def analyze_cash_flow(file_path: str) -> str:
-    """Analyze the Cash Flow tab of the Excel file."""
-    import pandas as pd
-    df = pd.read_excel(file_path, sheet_name='Cash Flow')
+async def analyze_cash_flow(df: pd.DataFrame) -> str:
+    """Analyze the Cash Flow DataFrame."""
     # Perform analysis on the Cash Flow data
-    # Example: Calculate free cash flow
     free_cash_flow = df['Operating Cash Flow'] - df['Capital Expenditure']
     suggestions = f"Free Cash Flow: {free_cash_flow.mean():.2f}"
     return suggestions
 
 @mcp.tool()
-async def analyze_data_sheet(file_path: str) -> str:
-    """Analyze the DataSheet tab of the Excel file."""
-    import pandas as pd
-    df = pd.read_excel(file_path, sheet_name='DataSheet')
+async def analyze_data_sheet(df: pd.DataFrame) -> str:
+    """Analyze the DataSheet DataFrame."""
     # Perform analysis on the DataSheet data
-    # Example: Extract key metrics
     key_metrics = df[['Metric1', 'Metric2', 'Metric3']].mean()
     suggestions = f"Key Metrics: {key_metrics.to_dict()}"
     return suggestions
+
+file_path = 'path/to/your/excel/file.xlsx'
+sheets = read_excel_sheets(file_path)
+
+# Example usage
+profit_and_loss_suggestions = await analyze_profit_and_loss(sheets['Profit and Loss'])
+quarters_suggestions = await analyze_quarters(sheets['Quarters'])
+balance_sheet_suggestions = await analyze_balance_sheet(sheets['Balance Sheet'])
+cash_flow_suggestions = await analyze_cash_flow(sheets['Cash Flow'])
+data_sheet_suggestions = await analyze_data_sheet(sheets['DataSheet'])
 
 
 
