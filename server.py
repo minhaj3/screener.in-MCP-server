@@ -8,6 +8,7 @@ import re
 from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
+import traceback
 
 # Load environment variables from .env file
 load_dotenv()
@@ -59,15 +60,19 @@ data = {
 
 
 # Helper function to make API requests
-async def make_get_request(endpoint: str, login: dict = None) -> dict[str, Any] | None:
+async def make_screener_request(endpoint: str, type: str = "get") -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=login)
+            response = None
+            if type == "post":
+                response = await client.post(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=data)
+            else:
+                response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers)
             response.raise_for_status()
-            return response
+            return {"response": response}
         except Exception as e:
             logging.info(f"response: {type(response)}, {response}")
-            logging.info(f"response: {response.text}")
+            logging.info(f"response.text: {response.text}")
             return {"error": str(e)}
 
 # Scraping and downloading reports
@@ -116,24 +121,23 @@ async def get_warehouse_id(symbol):
 
 # Resource: Fetch company details
 @mcp.resource("company://{company_name}")
-async def get_company_details(company_name: str) -> [str, str]:
+async def get_company_details(company_name: str) -> str:
     """Fetch company details from Screener.in."""
-    response = await make_get_request(f"company/{company_name}/", data=data)
-    if "error" in response:
-        return f"Error fetching details for {company_name}: {response['error']}"
+    result = await make_screener_request(f"company/{company_name}/", type='get')
+    if "error" in result:
+        return f"Error fetching details for {company_name}: {result['error']}"
     try:
-        html = response.text
+        html = result["response"].text
         soup = BeautifulSoup(html, 'html.parser')
-        modal_content = soup.find('div', class_='modal-content')
-
-        about_section = modal_content.find('div', string='About').find_next_sibling('div').get_text(strip=True)
-        key_points_section = modal_content.find('div', string='Key Points').find_next_sibling('div').get_text(strip=True)
-
-    except Exception as e:
-        return f"Error in details json for {company_name} for result: {result}: {str(e)}"
+        modal_content = soup.find('div', class_='sub show-more-box about')
+        all_p = modal_content.find_all('p')
+        about_section = "\n".join(p.get_text(strip=True) for p in all_p)
+    except Exception:
+        # logging.info(f"HTML response: {result['response'].text}")
+        return f"Error in details json for {company_name} for result: {result}: {traceback.format_exc()}"
 
     # extract relevant info from details page in some way like using beautiful soap etc
-    return [about_section, key_points_section]
+    return about_section
 
 
 # Resource: Fetch Explore page
