@@ -59,10 +59,10 @@ data = {
 
 
 # Helper function to make API requests
-async def make_get_request(endpoint: str, data: dict = None) -> dict[str, Any] | None:
+async def make_get_request(endpoint: str, login: dict = None) -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=data)
+            response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=login)
             response.raise_for_status()
             return response
         except Exception as e:
