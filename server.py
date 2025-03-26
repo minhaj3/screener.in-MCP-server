@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
 import traceback
+from openpyxl import load_workbook
 
 # Load environment variables from .env file
 load_dotenv()
@@ -100,6 +101,33 @@ async def get_warehouse_id(symbol):
         results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
         return results[0]
 
+def convert_excel_sheet_to_dataframe(file_path, sheet_name, skiprows=0):
+    wb = load_workbook(file_path, data_only=True)
+    sheet = wb[sheet_name]
+    data = []
+    for row in sheet.iter_rows(values_only=True):
+        data.append(row)
+        print("row: ", row)
+    df = pd.DataFrame(data)
+    df.columns = df.iloc[skiprows+1]
+    df = df[skiprows:]
+    return df
+
+def read_excel_sheets(file_path: str) -> dict[str, pd.DataFrame]:
+    """Read all sheets from an Excel file and return a dictionary of DataFrames."""
+    start_rows = {
+        'Profit & Loss': 2,
+        'Quarters': 2,
+        'Balance Sheet': 2,
+        'Cash Flow': 2,
+        'Customization': 1,  # Not relevant for data extraction, but still included
+        'Data Sheet': 4
+    }
+    data = {sheet: convert_excel_sheet_to_dataframe(file_path, sheet_name=sheet, skiprows=start_rows[sheet]) for sheet in start_rows.keys()}
+    return data
+
+
+
 
 # async def download_multiple_reports(symbols, PATH, delay):
 #     for symbol in symbols:
@@ -144,7 +172,7 @@ async def get_company_details(company_name: str) -> str:
 @mcp.resource("company://explore")
 async def get_explore_page() -> str:
     """Fetch explore page from Screener.in."""
-    result = await make_get_request(f"explore")
+    result = await make_screener_request(f"explore")
     if "error" in result:
         return f"Error fetching details for explore page: {result['error']}"
     # extract relevent infor from explore page in some way like using beautiful soap etc
@@ -155,9 +183,9 @@ async def get_explore_page() -> str:
 async def get_screens_page(page: str = None) -> str:
     """Fetch screens page from Screener.in."""
     if page:
-        result = await make_get_request(f"screens/?page={page}")
+        result = await make_screener_request(f"screens/?page={page}")
     else:
-        result = await make_get_request(f"screens")
+        result = await make_screener_request(f"screens")
     if "error" in result:
         return f"Error fetching details for screens page: {result['error']}"
     # extract relevent infor from screens page in some way like using beautiful soap etc
