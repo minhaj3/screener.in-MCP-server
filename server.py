@@ -1,15 +1,30 @@
 from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
+import pandas as pd
+import logging
+import json
+import re
+from dotenv import load_dotenv
+import os
+from bs4 import BeautifulSoup
+
+# Load environment variables from .env file
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize the MCP server
 mcp = FastMCP("Screener.in Server")
 
 # Define Screener.in API base URL and headers
 SCREENER_API_BASE = "https://www.screener.in"
-SCREENER_CSRF_TOKEN = ""
-SCREENER_SESSION_ID = ""
-SCREENER_CSRF_MIDDLEWARE_TOKEN = ""
+SCREENER_CSRF_TOKEN = os.getenv("SCREENER_CSRF_TOKEN")
+SCREENER_SESSION_ID = os.getenv("SCREENER_SESSION_ID")
+SCREENER_CSRF_MIDDLEWARE_TOKEN = os.getenv("SCREENER_CSRF_MIDDLEWARE_TOKEN")
+
+
 cookies = {
     'theme': 'auto',
     'csrftoken': SCREENER_CSRF_TOKEN,
@@ -44,13 +59,15 @@ data = {
 
 
 # Helper function to make API requests
-async def make_get_request(endpoint: str, params: dict = None) -> dict[str, Any] | None:
+async def make_get_request(endpoint: str, data: dict = None) -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers)
+            response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=data)
             response.raise_for_status()
-            return response.json()
+            return response
         except Exception as e:
+            logging.info(f"response: {type(response)}, {response}")
+            logging.info(f"response: {response.text}")
             return {"error": str(e)}
 
 # Scraping and downloading reports
@@ -79,10 +96,10 @@ async def get_warehouse_id(symbol):
         return results[0]
 
 
-async def download_multiple_reports(symbols, PATH, delay):
-    for symbol in symbols:
-        download_report(symbol)
-        await asyncio.sleep(delay)
+# async def download_multiple_reports(symbols, PATH, delay):
+#     for symbol in symbols:
+#         download_report(symbol)
+#         await asyncio.sleep(delay)
 
 
 # # Resource: Fetch company details and download report
@@ -99,95 +116,107 @@ async def download_multiple_reports(symbols, PATH, delay):
 
 # Resource: Fetch company details
 @mcp.resource("company://{company_name}")
-async def get_company_details(company_name: str) -> str:
+async def get_company_details(company_name: str) -> [str, str]:
     """Fetch company details from Screener.in."""
-    result = await make_get_request(f"companies/{company_name}/")
-    if "error" in result:
-        return f"Error fetching details for {company_name}: {result['error']}"
+    response = await make_get_request(f"company/{company_name}/", data=data)
+    if "error" in response:
+        return f"Error fetching details for {company_name}: {response['error']}"
+    try:
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        modal_content = soup.find('div', class_='modal-content')
+
+        about_section = modal_content.find('div', string='About').find_next_sibling('div').get_text(strip=True)
+        key_points_section = modal_content.find('div', string='Key Points').find_next_sibling('div').get_text(strip=True)
+
+    except Exception as e:
+        return f"Error in details json for {company_name} for result: {result}: {str(e)}"
+
     # extract relevant info from details page in some way like using beautiful soap etc
-    return "True"
+    return [about_section, key_points_section]
 
 
 # Resource: Fetch Explore page
 @mcp.resource("company://explore")
 async def get_explore_page() -> str:
     """Fetch explore page from Screener.in."""
-    result = await make_get_request(f"/explore")
+    result = await make_get_request(f"explore")
     if "error" in result:
         return f"Error fetching details for explore page: {result['error']}"
     # extract relevent infor from explore page in some way like using beautiful soap etc
     return "True"
 
 # Resource: Fetch screens page
-@mcp.resource("company://screens")
+@mcp.resource("company://screens/{page}")
 async def get_screens_page(page: str = None) -> str:
     """Fetch screens page from Screener.in."""
     if page:
-        result = await make_get_request(f"/screens/?page={page}")
+        result = await make_get_request(f"screens/?page={page}")
     else:
-        result = await make_get_request(f"/screens")
+        result = await make_get_request(f"screens")
     if "error" in result:
         return f"Error fetching details for screens page: {result['error']}"
     # extract relevent infor from screens page in some way like using beautiful soap etc
     return "True"
 
-import pandas as pd
 
-def read_excel_sheets(file_path: str) -> dict[str, pd.DataFrame]:
-    """Read all sheets from an Excel file and return a dictionary of DataFrames."""
-    xls = pd.ExcelFile(file_path)
-    sheets = {sheet_name: xls.parse(sheet_name) for sheet_name in xls.sheet_names}
-    return sheets
 
-@mcp.tool()
-async def analyze_profit_and_loss(df: pd.DataFrame) -> str:
-    """Analyze the Profit and Loss DataFrame."""
-    # Perform analysis on the Profit and Loss data
-    net_profit_margin = df['Net Profit'] / df['Revenue'] * 100
-    suggestions = f"Net Profit Margin: {net_profit_margin.mean():.2f}%"
-    return suggestions
 
-@mcp.tool()
-async def analyze_quarters(df: pd.DataFrame) -> str:
-    """Analyze the Quarters DataFrame."""
-    # Perform analysis on the Quarters data
-    quarterly_growth = df['Revenue'].pct_change().mean() * 100
-    suggestions = f"Average Quarterly Growth: {quarterly_growth:.2f}%"
-    return suggestions
-
-@mcp.tool()
-async def analyze_balance_sheet(df: pd.DataFrame) -> str:
-    """Analyze the Balance Sheet DataFrame."""
-    # Perform analysis on the Balance Sheet data
-    debt_to_equity_ratio = df['Total Liabilities'] / df['Total Equity']
-    suggestions = f"Debt to Equity Ratio: {debt_to_equity_ratio.mean():.2f}"
-    return suggestions
-
-@mcp.tool()
-async def analyze_cash_flow(df: pd.DataFrame) -> str:
-    """Analyze the Cash Flow DataFrame."""
-    # Perform analysis on the Cash Flow data
-    free_cash_flow = df['Operating Cash Flow'] - df['Capital Expenditure']
-    suggestions = f"Free Cash Flow: {free_cash_flow.mean():.2f}"
-    return suggestions
-
-@mcp.tool()
-async def analyze_data_sheet(df: pd.DataFrame) -> str:
-    """Analyze the DataSheet DataFrame."""
-    # Perform analysis on the DataSheet data
-    key_metrics = df[['Metric1', 'Metric2', 'Metric3']].mean()
-    suggestions = f"Key Metrics: {key_metrics.to_dict()}"
-    return suggestions
-
-file_path = 'path/to/your/excel/file.xlsx'
-sheets = read_excel_sheets(file_path)
-
-# Example usage
-profit_and_loss_suggestions = await analyze_profit_and_loss(sheets['Profit and Loss'])
-quarters_suggestions = await analyze_quarters(sheets['Quarters'])
-balance_sheet_suggestions = await analyze_balance_sheet(sheets['Balance Sheet'])
-cash_flow_suggestions = await analyze_cash_flow(sheets['Cash Flow'])
-data_sheet_suggestions = await analyze_data_sheet(sheets['DataSheet'])
+# def read_excel_sheets(file_path: str) -> dict[str, pd.DataFrame]:
+#     """Read all sheets from an Excel file and return a dictionary of DataFrames."""
+#     xls = pd.ExcelFile(file_path)
+#     sheets = {sheet_name: xls.parse(sheet_name) for sheet_name in xls.sheet_names}
+#     return sheets
+#
+# @mcp.tool()
+# async def analyze_profit_and_loss(df: pd.DataFrame) -> str:
+#     """Analyze the Profit and Loss DataFrame."""
+#     # Perform analysis on the Profit and Loss data
+#     net_profit_margin = df['Net Profit'] / df['Revenue'] * 100
+#     suggestions = f"Net Profit Margin: {net_profit_margin.mean():.2f}%"
+#     return suggestions
+#
+# @mcp.tool()
+# async def analyze_quarters(df: pd.DataFrame) -> str:
+#     """Analyze the Quarters DataFrame."""
+#     # Perform analysis on the Quarters data
+#     quarterly_growth = df['Revenue'].pct_change().mean() * 100
+#     suggestions = f"Average Quarterly Growth: {quarterly_growth:.2f}%"
+#     return suggestions
+#
+# @mcp.tool()
+# async def analyze_balance_sheet(df: pd.DataFrame) -> str:
+#     """Analyze the Balance Sheet DataFrame."""
+#     # Perform analysis on the Balance Sheet data
+#     debt_to_equity_ratio = df['Total Liabilities'] / df['Total Equity']
+#     suggestions = f"Debt to Equity Ratio: {debt_to_equity_ratio.mean():.2f}"
+#     return suggestions
+#
+# @mcp.tool()
+# async def analyze_cash_flow(df: pd.DataFrame) -> str:
+#     """Analyze the Cash Flow DataFrame."""
+#     # Perform analysis on the Cash Flow data
+#     free_cash_flow = df['Operating Cash Flow'] - df['Capital Expenditure']
+#     suggestions = f"Free Cash Flow: {free_cash_flow.mean():.2f}"
+#     return suggestions
+#
+# @mcp.tool()
+# async def analyze_data_sheet(df: pd.DataFrame) -> str:
+#     """Analyze the DataSheet DataFrame."""
+#     # Perform analysis on the DataSheet data
+#     key_metrics = df[['Metric1', 'Metric2', 'Metric3']].mean()
+#     suggestions = f"Key Metrics: {key_metrics.to_dict()}"
+#     return suggestions
+#
+# file_path = 'path/to/your/excel/file.xlsx'
+# sheets = read_excel_sheets(file_path)
+#
+# # Example usage
+# profit_and_loss_suggestions = await analyze_profit_and_loss(sheets['Profit and Loss'])
+# quarters_suggestions = await analyze_quarters(sheets['Quarters'])
+# balance_sheet_suggestions = await analyze_balance_sheet(sheets['Balance Sheet'])
+# cash_flow_suggestions = await analyze_cash_flow(sheets['Cash Flow'])
+# data_sheet_suggestions = await analyze_data_sheet(sheets['DataSheet'])
 
 
 
