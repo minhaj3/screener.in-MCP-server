@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
 import traceback
-from openpyxl import load_workbook
 
 # Load environment variables from .env file
 load_dotenv()
@@ -101,30 +100,43 @@ async def get_warehouse_id(symbol):
         results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
         return results[0]
 
-def convert_excel_sheet_to_dataframe(file_path, sheet_name, skiprows=0):
-    wb = load_workbook(file_path, data_only=True)
-    sheet = wb[sheet_name]
-    data = []
-    for row in sheet.iter_rows(values_only=True):
-        data.append(row)
-        print("row: ", row)
-    df = pd.DataFrame(data)
-    df.columns = df.iloc[skiprows+1]
-    df = df[skiprows:]
-    return df
+# New func to read html tables from a link using pandas
+def read_stock_info(url):
+    df_list = pd.read_html(url)
+    print(f"Number of tables: {len(df_list)}")
+    df_list = [df for df in df_list if df.shape[1] > 1]
+    print(f"Number of tables after filtering: {len(df_list)}")
+    df_quarterly_results = df_list[0]
+    df_quarterly_results.index = df_quarterly_results['Unnamed: 0']
+    df_quarterly_results = df_quarterly_results.drop(columns=['Unnamed: 0'])
+    df_quarterly_results.index.name = 'Quarter'
+    df_profit_loss = df_list[1]
+    df_profit_loss.index = df_profit_loss['Unnamed: 0']
+    df_profit_loss = df_profit_loss.drop(columns=['Unnamed: 0'])
+    df_profit_loss.index.name = 'Profit & Loss'
+    df_balance_sheet = df_list[6]
+    df_balance_sheet.index = df_balance_sheet['Unnamed: 0']
+    df_balance_sheet = df_balance_sheet.drop(columns=['Unnamed: 0'])
+    df_balance_sheet.index.name = 'Balance Sheet'
+    df_cash_flow = df_list[7]
+    df_cash_flow.index = df_cash_flow['Unnamed: 0']
+    df_cash_flow = df_cash_flow.drop(columns=['Unnamed: 0'])
+    df_cash_flow.index.name = 'Cash Flow'
+    df_ratios = df_list[8]
+    df_ratios.index = df_ratios['Unnamed: 0']
+    df_ratios = df_ratios.drop(columns=['Unnamed: 0'])
+    df_ratios.index.name = 'Ratios'
+    df_shareholding_pattern_quarterly = df_list[9]
+    df_shareholding_pattern_quarterly.index = df_shareholding_pattern_quarterly['Unnamed: 0']
+    df_shareholding_pattern_quarterly = df_shareholding_pattern_quarterly.drop(columns=['Unnamed: 0'])
+    df_shareholding_pattern_quarterly.index.name = 'Shareholding Pattern Quarterly'
+    df_shareholding_pattern_yearly = df_list[10]
+    df_shareholding_pattern_yearly.index = df_shareholding_pattern_yearly['Unnamed: 0']
+    df_shareholding_pattern_yearly = df_shareholding_pattern_yearly.drop(columns=['Unnamed: 0'])
+    df_shareholding_pattern_yearly.index.name = 'Shareholding Pattern Yearly'
 
-def read_excel_sheets(file_path: str) -> dict[str, pd.DataFrame]:
-    """Read all sheets from an Excel file and return a dictionary of DataFrames."""
-    start_rows = {
-        'Profit & Loss': 2,
-        'Quarters': 2,
-        'Balance Sheet': 2,
-        'Cash Flow': 2,
-        'Customization': 1,  # Not relevant for data extraction, but still included
-        'Data Sheet': 4
-    }
-    data = {sheet: convert_excel_sheet_to_dataframe(file_path, sheet_name=sheet, skiprows=start_rows[sheet]) for sheet in start_rows.keys()}
-    return data
+    return (df_quarterly_results, df_profit_loss, df_balance_sheet, df_cash_flow, df_ratios, 
+            df_shareholding_pattern_quarterly, df_shareholding_pattern_yearly)
 
 
 

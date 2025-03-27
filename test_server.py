@@ -3,7 +3,7 @@ import random
 import asyncio
 import logging
 from server import (download_report, get_warehouse_id, get_company_details, get_explore_page, get_screens_page,
-                    convert_excel_sheet_to_dataframe, read_excel_sheets)
+                    read_stock_info)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,18 +32,15 @@ async def test_get_screens_page():
     screens_page = await get_screens_page(page)
     print(f"Screens page details for page {page}: {screens_page}")
 
-def test_convert_excel_sheet_to_dataframe():
-    file_path = "reports/WIPRO.xlsx"
-    sheet_name = "Profit & Loss"
-    df = convert_excel_sheet_to_dataframe(file_path, sheet_name, skiprows=3)
+
+def test_read_stock_info():
+    url = "https://www.screener.in/company/WIPRO/"
+    df1, df2, df3, df4, df5, df6, df = read_stock_info(url)
+    print(df.head())
+    print(df.tail())
     print(df.columns)
     print(df.index)
-    print(df)
-
-def test_read_excel_sheets():
-    file_path = "reports/WIPRO.xlsx"
-    sheets = read_excel_sheets(file_path)
-    print(sheets)
+    print(df.shape)
 
 if __name__ == "__main__":
     # asyncio.run(test_download_report())
@@ -55,7 +52,7 @@ if __name__ == "__main__":
     # asyncio.run(test_get_company_details())
     # time.sleep(random.randint(1, 5))
 
-    test_convert_excel_sheet_to_dataframe()
+    test_read_stock_info()
 
     # asyncio.run(test_get_explore_page())
     # time.sleep(random.randint(1, 5))
