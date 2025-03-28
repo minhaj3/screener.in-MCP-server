@@ -71,7 +71,7 @@ async def make_screener_request(endpoint: str, type: str = "get") -> dict[str, A
             response.raise_for_status()
             return {"response": response}
         except Exception as e:
-            # logging.info(f"response: {type(response)}, {response}")
+            logging.info(f"response: {type(response)}, {response}")
             logging.info(f"response.text: {response.text}")
             return {"error": str(e)}
 
