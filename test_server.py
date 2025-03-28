@@ -52,9 +52,9 @@ if __name__ == "__main__":
     # asyncio.run(test_get_company_details())
     # time.sleep(random.randint(1, 5))
 
-    test_read_stock_info()
+    # test_read_stock_info()
 
-    # asyncio.run(test_get_explore_page())
+    asyncio.run(test_get_explore_page())
     # time.sleep(random.randint(1, 5))
     #
     # asyncio.run(test_get_screens_page())

@@ -71,7 +71,7 @@ async def make_screener_request(endpoint: str, type: str = "get") -> dict[str, A
             response.raise_for_status()
             return {"response": response}
         except Exception as e:
-            logging.info(f"response: {type(response)}, {response}")
+            # logging.info(f"response: {type(response)}, {response}")
             logging.info(f"response.text: {response.text}")
             return {"error": str(e)}
 
@@ -101,8 +101,9 @@ async def get_warehouse_id(symbol):
         return results[0]
 
 # New func to read html tables from a link using pandas
-def read_stock_info(url):
-    df_list = pd.read_html(url)
+@mcp.tool()
+async def read_stock_info(url):
+    df_list = await pd.read_html(url)
     print(f"Number of tables: {len(df_list)}")
     df_list = [df for df in df_list if df.shape[1] > 1]
     print(f"Number of tables after filtering: {len(df_list)}")
@@ -137,27 +138,6 @@ def read_stock_info(url):
 
     return (df_quarterly_results, df_profit_loss, df_balance_sheet, df_cash_flow, df_ratios, 
             df_shareholding_pattern_quarterly, df_shareholding_pattern_yearly)
-
-
-
-
-# async def download_multiple_reports(symbols, PATH, delay):
-#     for symbol in symbols:
-#         download_report(symbol)
-#         await asyncio.sleep(delay)
-
-
-# # Resource: Fetch company details and download report
-# @mcp.resource("company://{company_name}")
-# async def get_company_details_and_report(company_name: str) -> str:
-#     """Fetch company details and download report from Screener.in."""
-#     details = await make_screener_request(f"companies/{company_name}/")
-#     await scrape_and_download([company_name], './reports', 0)
-#     if "error" in details:
-#         return f"Error fetching details for {company_name}: {details['error']}"
-#     return f"Company: {details['name']}nSector: {details['sector']}nMarket Cap: {details['market_cap']}"
-
-
 
 # Resource: Fetch company details
 @mcp.resource("company://{company_name}")
