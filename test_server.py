@@ -27,8 +27,7 @@ async def test_get_explore_page():
     explore_page = await get_explore_page()
     print(f"Explore page details: {explore_page}")
 
-async def test_get_screens_page():
-    page = "1"
+async def test_get_screens_page(page="1"):
     screens_page = await get_screens_page(page)
     print(f"Screens page details for page {page}: {screens_page}")
 
@@ -54,7 +53,7 @@ if __name__ == "__main__":
 
     # test_read_stock_info()
 
-    asyncio.run(test_get_explore_page())
-    time.sleep(random.randint(1, 5))
+    # asyncio.run(test_get_explore_page())
+    # time.sleep(random.randint(1, 5))
     #
-    asyncio.run(test_get_screens_page())
+    asyncio.run(test_get_screens_page(page="2"))

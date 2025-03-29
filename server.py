@@ -60,18 +60,18 @@ data = {
 
 
 # Helper function to make API requests
-async def make_screener_request(endpoint: str, type: str = "get") -> dict[str, Any] | None:
+async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
         try:
             response = None
-            if type == "post":
+            if req_type == "post":
                 response = await client.post(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=data)
             else:
                 response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers)
             response.raise_for_status()
             return {"response": response}
         except Exception as e:
-            logging.info(f"response: {type(response)}, {response}")
+            logging.info(f"response: {type(response)}, {response}, {response.has_redirect_location}, {response.next_request}")
             logging.info(f"response.text: {response.text}")
             return {"error": str(e)}
 
@@ -143,7 +143,7 @@ async def read_stock_info(url):
 @mcp.resource("company://{company_name}")
 async def get_company_details(company_name: str) -> str:
     """Fetch company details from Screener.in."""
-    result = await make_screener_request(f"company/{company_name}/", type='get')
+    result = await make_screener_request(f"company/{company_name}/", req_type='get')
     if "error" in result:
         return f"Error fetching details for {company_name}: {result['error']}"
     try:
@@ -161,17 +161,17 @@ async def get_company_details(company_name: str) -> str:
 
 
 # Resource: Fetch Explore page
-@mcp.resource("company://explore")
+# @mcp.resource("company://explore")
 async def get_explore_page() -> str:
     """Fetch explore page from Screener.in."""
-    result = await make_screener_request(f"explore")
+    result = await make_screener_request(f"explore/")
     if "error" in result:
         return f"Error fetching details for explore page: {result['error']}"
     # extract relevent infor from explore page in some way like using beautiful soap etc
     return "True"
 
 # Resource: Fetch screens page
-@mcp.resource("company://screens/{page}")
+# @mcp.resource("company://screens/{page}")
 async def get_screens_page(page: str = None) -> str:
     """Fetch screens page from Screener.in."""
     if page:
