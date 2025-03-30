@@ -56,4 +56,4 @@ if __name__ == "__main__":
     # asyncio.run(test_get_explore_page())
     # time.sleep(random.randint(1, 5))
     #
-    asyncio.run(test_get_screens_page(page="2"))
+    asyncio.run(test_get_screens_page(page="1"))

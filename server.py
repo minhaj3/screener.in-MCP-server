@@ -162,16 +162,16 @@ async def get_company_details(company_name: str) -> str:
 
 # Resource: Fetch Explore page
 # @mcp.resource("company://explore")
-async def get_explore_page() -> str:
-    """Fetch explore page from Screener.in."""
-    result = await make_screener_request(f"explore/")
-    if "error" in result:
-        return f"Error fetching details for explore page: {result['error']}"
-    # extract relevent infor from explore page in some way like using beautiful soap etc
-    return "True"
+# async def get_explore_page() -> str:
+#     """Fetch explore page from Screener.in."""
+#     result = await make_screener_request(f"explore/")
+#     if "error" in result:
+#         return f"Error fetching details for explore page: {result['error']}"
+#     # extract relevent infor from explore page in some way like using beautiful soap etc
+#     return "True"
 
 # Resource: Fetch screens page
-# @mcp.resource("company://screens/{page}")
+@mcp.tool("company://screens/{page}")
 async def get_screens_page(page: str = None) -> str:
     """Fetch screens page from Screener.in."""
     if page:
@@ -180,9 +180,17 @@ async def get_screens_page(page: str = None) -> str:
         result = await make_screener_request(f"screens")
     if "error" in result:
         return f"Error fetching details for screens page: {result['error']}"
-    # extract relevent infor from screens page in some way like using beautiful soap etc
-    return "True"
-
+    try:
+        html = result["response"].text
+        soup = BeautifulSoup(html, 'html.parser')
+        header_content = soup.find('div', class_='flex-row flex-space-between')
+        body_content = header_content.find_next('ul').find_all('li')
+        # logging.info(f"body_content: {body_content}")
+        # return json of all li element text and href
+        return json.dumps([{"text": li.get_text(strip=True), "href": SCREENER_API_BASE+li.a['href']} for li in body_content])
+    except Exception:
+        # logging.info(f"HTML response: {result['response'].text}")
+        return f"Error in get_screen_page func for page {page}: {traceback.format_exc()}"
 
 
 
