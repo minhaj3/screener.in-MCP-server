@@ -76,19 +76,25 @@ async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[st
             return {"error": str(e)}
 
 # Scraping and downloading reports
-async def download_report(symbol, PATH):
+@mcp.tool()
+async def download_report(symbol: str) -> str:
+    path = "./reports"
     warehouseid = await get_warehouse_id(symbol)
     url = f'{SCREENER_API_BASE}/user/company/export/{warehouseid}/'
     async with httpx.AsyncClient() as client:
         r = await client.post(url, cookies=cookies, headers=headers, data=data)
         logging.info(f"r.status_code: {r.status_code}")
         r.raise_for_status()
-        path = f'{PATH}/{symbol.strip()}.xlsx'
+        path = f'{path}/{symbol.strip()}.xlsx'
 
         if r.status_code == 200:
             with open(path, 'wb') as f:
                 f.write(r.content)
             logging.info(f"Excel file created for: {symbol}")
+            return path
+        else:
+            logging.info(f"Error in downloading report for: {symbol}")
+            return f"Error in downloading report for: {symbol}"
 
 async def get_warehouse_id(symbol):
     logging.info("Getting warehouse id: " + symbol)
@@ -102,8 +108,9 @@ async def get_warehouse_id(symbol):
 
 # New func to read html tables from a link using pandas
 @mcp.tool()
-async def read_stock_info(url):
-    df_list = await pd.read_html(url)
+async def read_stock_info(stock):
+    url = f"{SCREENER_API_BASE}/company/{stock}/"
+    df_list = pd.read_html(url)
     print(f"Number of tables: {len(df_list)}")
     df_list = [df for df in df_list if df.shape[1] > 1]
     print(f"Number of tables after filtering: {len(df_list)}")
@@ -140,7 +147,7 @@ async def read_stock_info(url):
             df_shareholding_pattern_quarterly, df_shareholding_pattern_yearly)
 
 # Resource: Fetch company details
-@mcp.resource("company://{company_name}")
+@mcp.tool()
 async def get_company_details(company_name: str) -> str:
     """Fetch company details from Screener.in."""
     result = await make_screener_request(f"company/{company_name}/", req_type='get')
@@ -171,8 +178,8 @@ async def get_company_details(company_name: str) -> str:
 #     return "True"
 
 # Resource: Fetch screens page
-@mcp.tool("company://screens/{page}")
-async def get_screens_page(page: str = None) -> str:
+@mcp.tool()
+async def get_screens_page(page: int = None) -> str:
     """Fetch screens page from Screener.in."""
     if page:
         result = await make_screener_request(f"screens/?page={page}")
@@ -289,9 +296,9 @@ async def get_screens_page(page: str = None) -> str:
 #     return f"Report saved as {report_path}"
 
 # Prompt: Analyze company financials
-@mcp.prompt()
-def analyze_financials(company_name: str) -> str:
-    return f"Analyze the financial health of {company_name}. Include key ratios and recent performance."
+# @mcp.prompt()
+# def analyze_financials(company_name: str) -> str:
+#     return f"Analyze the financial health of {company_name}. Include key ratios and recent performance."
 
 # Run the server
 if __name__ == "__main__":

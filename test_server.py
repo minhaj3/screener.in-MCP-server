@@ -10,8 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def test_download_report():
     symbol = "WIPRO"
-    path = "./reports"
-    await download_report(symbol, path)
+    await download_report(symbol)
 
 async def test_get_warehouse_id():
     symbol = "WIPRO"
@@ -33,7 +32,7 @@ async def test_get_screens_page(page="1"):
 
 
 def test_read_stock_info():
-    url = "https://www.screener.in/company/WIPRO/"
+    url = "WIPRO"
     df1, df2, df3, df4, df5, df6, df = read_stock_info(url)
     print(df.head())
     print(df.tail())
