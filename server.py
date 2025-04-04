@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
 import traceback
+from functools import lru_cache
 
 # Load environment variables from .env file
 load_dotenv()
@@ -58,7 +59,6 @@ data = {
     'next': '/company/WIPRO/consolidated/',
 }
 
-
 # Helper function to make API requests
 async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
@@ -75,9 +75,21 @@ async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[st
             logging.info(f"response.text: {response.text}")
             return {"error": str(e)}
 
-# Scraping and downloading reports
+# Helper function to get warehouse id for downloading excel report
+async def get_warehouse_id(symbol):
+    logging.info("Getting warehouse id: " + symbol)
+    api = f"{SCREENER_API_BASE}/api/company/search/?q={symbol}"
+    async with httpx.AsyncClient() as client:
+        d = await client.get(api)
+        j = json.loads(d.content)[0]
+        html = await client.get('https://www.screener.in' + j['url'])
+        results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
+        return results[0]
+
+
 @mcp.tool()
 async def download_report(symbol: str) -> str:
+    """Download excel report for a stock from Screener.in."""
     path = "./reports"
     warehouseid = await get_warehouse_id(symbol)
     url = f'{SCREENER_API_BASE}/user/company/export/{warehouseid}/'
@@ -96,19 +108,9 @@ async def download_report(symbol: str) -> str:
             logging.info(f"Error in downloading report for: {symbol}")
             return f"Error in downloading report for: {symbol}"
 
-async def get_warehouse_id(symbol):
-    logging.info("Getting warehouse id: " + symbol)
-    api = f"{SCREENER_API_BASE}/api/company/search/?q={symbol}"
-    async with httpx.AsyncClient() as client:
-        d = await client.get(api)
-        j = json.loads(d.content)[0]
-        html = await client.get('https://www.screener.in' + j['url'])
-        results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
-        return results[0]
-
-# New func to read html tables from a link using pandas
-@mcp.tool()
-async def read_stock_info(stock):
+@lru_cache(maxsize=32)
+async def read_stock_info(stock: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Read detailed stock information from Screener.in."""
     url = f"{SCREENER_API_BASE}/company/{stock}/"
     df_list = pd.read_html(url)
     print(f"Number of tables: {len(df_list)}")
@@ -146,7 +148,54 @@ async def read_stock_info(stock):
     return (df_quarterly_results, df_profit_loss, df_balance_sheet, df_cash_flow, df_ratios, 
             df_shareholding_pattern_quarterly, df_shareholding_pattern_yearly)
 
-# Resource: Fetch company details
+# Multiple tool below which uses above func to get company details like quaterly results, pnl, etc
+@mcp.tool()
+async def get_quarterly_results(company_name: str) -> dict[str, Any]:
+    """Fetch quarterly results for a company from Screener.in."""
+    df_quarterly_results, _, _, _, _, _, _ = await read_stock_info(company_name)
+    return df_quarterly_results.to_dict()
+
+@mcp.tool()
+async def get_profit_loss(company_name: str) -> dict[str, Any]:
+    """Fetch profit and loss statement for a company from Screener.in."""
+    _, df_profit_loss, _, _, _, _, _ = await read_stock_info(company_name)
+    return df_profit_loss.to_dict()
+
+@mcp.tool()
+async def get_balance_sheet(company_name: str) -> dict[str, Any]:
+    """Fetch balance sheet for a company from Screener.in."""
+    _, _, df_balance_sheet, _, _, _, _ = await read_stock_info(company_name)
+    return df_balance_sheet.to_dict()
+
+
+@mcp.tool()
+async def get_cash_flow(company_name: str) -> dict[str, Any]:
+    """Fetch cash flow statement for a company from Screener.in."""
+    _, _, _, df_cash_flow, _, _, _ = await read_stock_info(company_name)
+    return df_cash_flow.to_dict()
+
+
+@mcp.tool()
+async def get_ratios(company_name: str) -> dict[str, Any]:
+    """Fetch financial ratios for a company from Screener.in."""
+    _, _, _, _, df_ratios, _, _ = await read_stock_info(company_name)
+    return df_ratios.to_dict()
+
+
+@mcp.tool()
+async def get_shareholding_pattern_quarterly(company_name: str) -> dict[str, Any]:
+    """Fetch quarterly shareholding pattern for a company from Screener.in."""
+    _, _, _, _, _, df_shareholding_pattern_quarterly, _ = await read_stock_info(company_name)
+    return df_shareholding_pattern_quarterly.to_dict()
+
+
+@mcp.tool()
+async def get_shareholding_pattern_yearly(company_name: str) -> dict[str, Any]:
+    """Fetch yearly shareholding pattern for a company from Screener.in."""
+    _, _, _, _, _, _, df_shareholding_pattern_yearly = await read_stock_info(company_name)
+    return df_shareholding_pattern_yearly.to_dict()
+
+
 @mcp.tool()
 async def get_company_details(company_name: str) -> str:
     """Fetch company details from Screener.in."""
@@ -177,7 +226,7 @@ async def get_company_details(company_name: str) -> str:
 #     # extract relevent infor from explore page in some way like using beautiful soap etc
 #     return "True"
 
-# Resource: Fetch screens page
+
 @mcp.tool()
 async def get_screens_page(page: int = None) -> str:
     """Fetch screens page from Screener.in."""
