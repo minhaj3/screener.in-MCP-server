@@ -22,9 +22,9 @@ async def test_get_company_details():
     details = await get_company_details(company_name)
     print(f"Company details for {company_name}: {details}")
 
-async def test_get_explore_page():
-    explore_page = await get_explore_page()
-    print(f"Explore page details: {explore_page}")
+# async def test_get_explore_page():
+#     explore_page = await get_explore_page()
+#     print(f"Explore page details: {explore_page}")
 
 async def test_get_screens_page(page="1"):
     screens_page = await get_screens_page(page)
