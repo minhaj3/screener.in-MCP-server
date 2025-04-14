@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import os
 from bs4 import BeautifulSoup
 import traceback
-from functools import lru_cache
+from aiocache import cached
 
 # Load environment variables from .env file
 load_dotenv()
@@ -108,7 +108,7 @@ async def download_report(symbol: str) -> str:
             logging.info(f"Error in downloading report for: {symbol}")
             return f"Error in downloading report for: {symbol}"
 
-@lru_cache(maxsize=32)
+@cached(ttl=3600)  # Cache results for 1 hour
 async def read_stock_info(stock: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Read detailed stock information from Screener.in."""
     url = f"{SCREENER_API_BASE}/company/{stock}/"
