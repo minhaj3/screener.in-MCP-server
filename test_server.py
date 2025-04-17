@@ -12,7 +12,9 @@ from server import (
     get_ratios,
     get_shareholding_pattern_quarterly,
     get_shareholding_pattern_yearly,
-    get_price_info
+    get_price_info,
+    generate_stock_recommendation,
+    calculate_rsi
 )
 
 # Configure logging
@@ -93,6 +95,17 @@ async def test_get_price_info():
     results = await get_price_info(symbol, query, days, consolidated)
     print(f"Price Info for {symbol}: {results}")
 
+async def test_generate_stock_recommendation():
+    symbol = "TCS"
+    results = await generate_stock_recommendation(symbol)
+    print(results)
+
+async def test_calculate_rsi():
+    symbol = "TCS"
+    period = 14
+    rsi_value = await calculate_rsi(symbol, period)
+    print(f"RSI for {symbol} with period {period}: {rsi_value}")
+
 if __name__ == "__main__":
     # asyncio.run(test_download_report())
     # time.sleep(random.randint(1, 5))
@@ -119,4 +132,8 @@ if __name__ == "__main__":
     # asyncio.run(test_get_screens_page(page="1"))
     # time.sleep(random.randint(1, 5))
 
-    asyncio.run(test_get_price_info())
+    # asyncio.run(test_get_price_info())
+
+    # asyncio.run(test_generate_stock_recommendation())
+
+    asyncio.run(test_calculate_rsi())

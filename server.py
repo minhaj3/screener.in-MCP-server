@@ -271,6 +271,148 @@ async def get_price_info(symbol: str, query: str = "Price-DMA50-DMA200-Volume", 
         logging.info(f"Error parsing JSON response: {str(e)}")
         return {"error": f"Error parsing JSON response for company {company_id}: {str(e)}"}
 
+@mcp.tool()
+async def generate_stock_recommendation(symbol: str) -> dict[str, Any]:
+    """
+    Generate stock recommendations based on price, DMA50, DMA200, and volume.
+
+    Args:
+        symbol: The ticker symbol to analyze.
+
+    Returns:
+        Dictionary with stock analysis and recommendation.
+    """
+    # Fetch price info
+    price_data = await get_price_info(symbol)
+    if "error" in price_data:
+        return {"error": f"Failed to fetch price info for {symbol}: {price_data['error']}"}
+
+    # Extract datasets
+    datasets = {dataset["metric"]: dataset for dataset in price_data.get("datasets", [])}
+
+    # Ensure required metrics are available
+    required_metrics = ["Price", "DMA50", "DMA200", "Volume"]
+    if not all(metric in datasets for metric in required_metrics):
+        return {"error": f"Missing required metrics for {symbol}: {required_metrics}"}
+
+    # Get latest values
+    latest_price = float(datasets["Price"]["values"][-1][1])
+    latest_dma50 = float(datasets["DMA50"]["values"][-1][1])
+    latest_dma200 = float(datasets["DMA200"]["values"][-1][1])
+    latest_volume = datasets["Volume"]["values"][-1][1]
+    avg_volume = sum(v[1] for v in datasets["Volume"]["values"]) / len(datasets["Volume"]["values"])
+
+    # Determine signal
+    if latest_price > latest_dma50 > latest_dma200:
+        signal = "BULLISH"
+    elif latest_price < latest_dma50 < latest_dma200:
+        signal = "BEARISH"
+    else:
+        signal = "NEUTRAL"
+
+    # Volume analysis
+    unusual_volume = latest_volume > 1.5 * avg_volume
+
+    # Recommendation
+    if signal == "BULLISH" and unusual_volume:
+        recommendation = "STRONG BUY"
+    elif signal == "BULLISH":
+        recommendation = "BUY"
+    elif signal == "BEARISH" and unusual_volume:
+        recommendation = "STRONG SELL"
+    elif signal == "BEARISH":
+        recommendation = "SELL"
+    else:
+        recommendation = "HOLD"
+
+    return {
+        "symbol": symbol,
+        "latest_price": latest_price,
+        "latest_dma50": latest_dma50,
+        "latest_dma200": latest_dma200,
+        "latest_volume": latest_volume,
+        "average_volume": avg_volume,
+        "signal": signal,
+        "unusual_volume": unusual_volume,
+        "recommendation": recommendation,
+        "analysis": f"""Stock Analysis for {symbol}:
+Latest Price: {latest_price}
+50 DMA: {latest_dma50}
+200 DMA: {latest_dma200}
+Signal: {signal}
+Unusual Volume: {"Yes" if unusual_volume else "No"}
+Recommendation: {recommendation}
+"""
+    }
+
+@mcp.tool()
+async def calculate_rsi(symbol: str, period: int = 14) -> dict[str, Any]:
+    """
+    Calculate Relative Strength Index (RSI) for a symbol.
+
+    Args:
+        symbol: The ticker symbol to analyze.
+        period: RSI calculation period.
+
+    Returns:
+        Dictionary with RSI data and analysis.
+    """
+    # Fetch price info
+    price_data = await get_price_info(symbol, query="Price", days=365)
+    if "error" in price_data:
+        return {"error": f"Failed to fetch price info for {symbol}: {price_data['error']}"}
+
+    # Extract price data
+    datasets = {dataset["metric"]: dataset for dataset in price_data.get("datasets", [])}
+    if "Price" not in datasets:
+        return {"error": f"Price data not available for {symbol}"}
+
+    # Convert price values to a DataFrame
+    price_values = datasets["Price"]["values"]
+    df = pd.DataFrame(price_values, columns=["date", "close"])
+    df["close"] = df["close"].astype(float)
+
+    # Calculate price changes
+    delta = df["close"].diff()
+
+    # Create gain and loss series
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    # Calculate average gain and loss
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+
+    # Calculate RS and RSI
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    # Get latest RSI
+    latest_rsi = rsi.iloc[-1]
+
+    # Determine signal
+    if latest_rsi < 30:
+        signal = "OVERSOLD (Potential buy opportunity)"
+    elif latest_rsi > 70:
+        signal = "OVERBOUGHT (Potential sell opportunity)"
+    else:
+        signal = "NEUTRAL"
+
+    return {
+        "symbol": symbol,
+        "period": period,
+        "rsi": latest_rsi,
+        "signal": signal,
+        "analysis": f"""RSI Analysis for {symbol}:
+{period}-period RSI: {latest_rsi:.2f}
+Signal: {signal}
+
+Recommendation: {
+    "BUY" if latest_rsi < 30 else
+    "SELL" if latest_rsi > 70 else
+    "HOLD"
+}"""
+    }
 
 # Run the server
 if __name__ == "__main__":
