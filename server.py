@@ -60,14 +60,14 @@ data = {
 }
 
 # Helper function to make API requests
-async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[str, Any] | None:
+async def make_screener_request(endpoint: str, req_type: str = "get", params: dict[str, Any] = None) -> dict[str, Any] | None:
     async with httpx.AsyncClient() as client:
         try:
             response = None
             if req_type == "post":
                 response = await client.post(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, cookies=cookies, data=data)
             else:
-                response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers)
+                response = await client.get(f"{SCREENER_API_BASE}/{endpoint}", headers=headers, params=params)
             response.raise_for_status()
             return {"response": response}
         except Exception as e:
@@ -76,22 +76,24 @@ async def make_screener_request(endpoint: str, req_type: str = "get") -> dict[st
             return {"error": str(e)}
 
 # Helper function to get warehouse id for downloading excel report
-async def get_warehouse_id(symbol):
+async def get_warehouse_and_company_id(symbol):
     logging.info("Getting warehouse id: " + symbol)
     api = f"{SCREENER_API_BASE}/api/company/search/?q={symbol}"
     async with httpx.AsyncClient() as client:
         d = await client.get(api)
         j = json.loads(d.content)[0]
         html = await client.get('https://www.screener.in' + j['url'])
-        results = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
-        return results[0]
+        # print(f"html: {html.text}")
+        warehouse_id = re.findall('formaction=./user/company/export/(.*?)/.', html.text)
+        company_id = re.findall('formaction=./api/company/(.*?)/add/.', html.text)
+        return warehouse_id[0], company_id[0]
 
 
 @mcp.tool()
 async def download_report(symbol: str) -> str:
     """Download excel report for a stock from Screener.in."""
     path = "./reports"
-    warehouseid = await get_warehouse_id(symbol)
+    warehouseid, _ = await get_warehouse_and_company_id(symbol)
     url = f'{SCREENER_API_BASE}/user/company/export/{warehouseid}/'
     async with httpx.AsyncClient() as client:
         r = await client.post(url, cookies=cookies, headers=headers, data=data)
@@ -247,6 +249,27 @@ async def get_screens_page(page: int = None) -> str:
     except Exception:
         # logging.info(f"HTML response: {result['response'].text}")
         return f"Error in get_screen_page func for page {page}: {traceback.format_exc()}"
+
+@mcp.tool()
+async def get_price_info(symbol: str, query: str = "Price-DMA50-DMA200-Volume", days: int = 365, consolidated: bool = True) -> dict[str, Any]:
+    """Fetch price and related information for a company from Screener.in."""
+    params = {
+        "q": query,
+        "days": str(days),
+        "consolidated": str(consolidated).lower(),
+    }
+    _, company_id = await get_warehouse_and_company_id(symbol)
+    print(f"company_id: {company_id}")
+    if not company_id:
+        return {"error": f"Company ID not found for symbol: {symbol}"}
+    result = await make_screener_request(f"api/company/{company_id}/chart/", params=params)
+    if "error" in result:
+        return {"error": f"Error fetching price info for company {company_id}: {result['error']}"}
+    try:
+        return result["response"].json()
+    except Exception as e:
+        logging.info(f"Error parsing JSON response: {str(e)}")
+        return {"error": f"Error parsing JSON response for company {company_id}: {str(e)}"}
 
 
 # Run the server
