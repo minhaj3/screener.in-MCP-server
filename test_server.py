@@ -13,8 +13,9 @@ from server import (
     get_shareholding_pattern_quarterly,
     get_shareholding_pattern_yearly,
     get_price_info,
-    generate_stock_recommendation,
-    calculate_rsi
+    calculate_moving_average,
+    calculate_rsi,
+    trade_recommendation
 )
 
 # Configure logging
@@ -95,9 +96,9 @@ async def test_get_price_info():
     results = await get_price_info(symbol, query, days, consolidated)
     print(f"Price Info for {symbol}: {results}")
 
-async def test_generate_stock_recommendation():
+async def test_calculate_moving_average():
     symbol = "TCS"
-    results = await generate_stock_recommendation(symbol)
+    results = await calculate_moving_average(symbol)
     print(results)
 
 async def test_calculate_rsi():
@@ -105,6 +106,11 @@ async def test_calculate_rsi():
     period = 14
     rsi_value = await calculate_rsi(symbol, period)
     print(f"RSI for {symbol} with period {period}: {rsi_value}")
+
+async def test_trade_recommendation():
+    symbol = "TCS"
+    recommendation = await trade_recommendation(symbol)
+    print(f"Trade Recommendation for {symbol}: {recommendation}")
 
 if __name__ == "__main__":
     # asyncio.run(test_download_report())
@@ -134,6 +140,8 @@ if __name__ == "__main__":
 
     # asyncio.run(test_get_price_info())
 
-    # asyncio.run(test_generate_stock_recommendation())
+    # asyncio.run(test_calculate_moving_average())
 
-    asyncio.run(test_calculate_rsi())
+    # asyncio.run(test_calculate_rsi())
+
+    asyncio.run(test_trade_recommendation())
